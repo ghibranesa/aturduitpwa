@@ -248,11 +248,21 @@
                         <i data-lucide="book-open" class="w-3.5 h-3.5"></i>
                         <span>Panduan</span>
                     </button>
+                    <button onclick="backupData()" class="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-medium px-3 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 touch-target" title="Backup Data ke File JSON">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span>Backup</span>
+                    </button>
+                    <button onclick="document.getElementById('restoreFileInput').click()" class="flex-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-medium px-3 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 touch-target" title="Restore Data dari File JSON">
+                        <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                        <span>Restore</span>
+                    </button>
                     <button onclick="resetToDefault()" class="flex-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-medium px-3 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 touch-target" title="Reset Ulang Dari Nol">
                         <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
-                        <span>Reset Semua</span>
+                        <span>Reset</span>
                     </button>
                 </div>
+                <!-- Input file tersembunyi untuk restore -->
+                <input type="file" id="restoreFileInput" accept=".json" class="hidden" onchange="restoreData(event)">
             </div>
         </header>
 
@@ -509,17 +519,86 @@
             expenses: []
         };
 
-        let savedData = JSON.parse(localStorage.getItem('fin_app_data'));
-        if (!savedData || savedData.version !== "10.0_qris_zoom") {
-            localStorage.setItem('fin_app_data', JSON.stringify(defaultData));
-            savedData = defaultData;
-        }
-
-        let appData = savedData;
+        let appData = JSON.parse(JSON.stringify(defaultData));
         let chart;
 
+        // ═══════════════════════════════════════════════════════════════════
+        // STORAGE ENGINE: IndexedDB (primary) + localStorage (fallback)
+        // IndexedDB tidak ikut kehapus saat "Clear browsing history/cache"
+        // Hanya hilang kalau user pilih "Clear site data" secara eksplisit
+        // ═══════════════════════════════════════════════════════════════════
+        const DB_NAME    = 'aturduit_db';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'app_store';
+        const DATA_KEY   = 'fin_app_data';
+
+        let db = null;
+
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                if (db) return resolve(db);
+                const req = indexedDB.open(DB_NAME, DB_VERSION);
+                req.onupgradeneeded = (e) => {
+                    e.target.result.createObjectStore(STORE_NAME);
+                };
+                req.onsuccess  = (e) => { db = e.target.result; resolve(db); };
+                req.onerror    = (e) => reject(e.target.error);
+            });
+        }
+
+        function idbGet(key) {
+            return openDB().then(db => new Promise((resolve, reject) => {
+                const tx  = db.transaction(STORE_NAME, 'readonly');
+                const req = tx.objectStore(STORE_NAME).get(key);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror   = (e) => reject(e.target.error);
+            }));
+        }
+
+        function idbSet(key, value) {
+            return openDB().then(db => new Promise((resolve, reject) => {
+                const tx  = db.transaction(STORE_NAME, 'readwrite');
+                const req = tx.objectStore(STORE_NAME).put(value, key);
+                req.onsuccess = () => resolve();
+                req.onerror   = (e) => reject(e.target.error);
+            }));
+        }
+
+        // saveData: tulis ke IndexedDB + sync localStorage sebagai fallback
         function saveData() {
-            localStorage.setItem('fin_app_data', JSON.stringify(appData));
+            idbSet(DATA_KEY, appData).catch(err => {
+                console.warn('[AturDuit] IndexedDB write failed, fallback to localStorage:', err);
+            });
+            try { localStorage.setItem(DATA_KEY, JSON.stringify(appData)); } catch(_) {}
+        }
+
+        // loadData: prioritaskan IndexedDB, fallback ke localStorage
+        async function loadData() {
+            let data = null;
+            try {
+                data = await idbGet(DATA_KEY);
+            } catch (err) {
+                console.warn('[AturDuit] IndexedDB read failed, trying localStorage:', err);
+            }
+            if (!data) {
+                try {
+                    const raw = localStorage.getItem(DATA_KEY);
+                    if (raw) data = JSON.parse(raw);
+                } catch(_) {}
+            }
+            if (!data || data.version !== defaultData.version) {
+                const base = JSON.parse(JSON.stringify(defaultData));
+                if (data) {
+                    if (data.expenses && data.expenses.length)     base.expenses   = data.expenses;
+                    if (data.categories && data.categories.length) base.categories = data.categories;
+                    if (data.income)                               base.income     = data.income;
+                    if (data.years)                                base.years      = data.years;
+                    if (data.isLocked !== undefined)               base.isLocked   = data.isLocked;
+                }
+                data = base;
+            }
+            appData = data;
+            saveData(); // pastikan IDB selalu sinkron
         }
 
         function toggleManualModal(show) {
@@ -1225,6 +1304,84 @@
             }
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // BACKUP & RESTORE
+        // ═══════════════════════════════════════════════════════════════
+
+        function backupData() {
+            try {
+                const snapshot = JSON.parse(JSON.stringify(appData));
+                snapshot._backup_time = new Date().toISOString();
+                snapshot._backup_version = '1.0';
+
+                const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+
+                // Nama file: aturduit-backup-YYYY-MM-DD.json
+                const dateStr = new Date().toISOString().split('T')[0];
+                a.href     = url;
+                a.download = `aturduit-backup-${dateStr}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                showToast('✅ Backup berhasil! File tersimpan di folder Downloads.', 'success');
+            } catch (err) {
+                console.error('[AturDuit] Backup failed:', err);
+                showToast('❌ Backup gagal. Coba lagi.', 'danger');
+            }
+        }
+
+        function restoreData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Reset input supaya file yang sama bisa dipilih lagi kalau perlu
+            event.target.value = '';
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+
+                    // Validasi: harus punya field utama AturDuit
+                    if (!parsed.categories || !Array.isArray(parsed.categories) ||
+                        !parsed.hasOwnProperty('income') || !Array.isArray(parsed.expenses)) {
+                        showToast('❌ File bukan backup AturDuit yang valid.', 'danger');
+                        return;
+                    }
+
+                    if (!confirm(`Restore data dari backup ${parsed._backup_time ? new Date(parsed._backup_time).toLocaleString('id-ID') : 'ini'}?\n\nData yang ada sekarang akan DITIMPA.`)) return;
+
+                    // Bersihkan field internal backup sebelum load
+                    delete parsed._backup_time;
+                    delete parsed._backup_version;
+
+                    // Paksa versi supaya cocok dengan app sekarang
+                    parsed.version = defaultData.version;
+
+                    appData = parsed;
+                    saveData();
+
+                    // Re-render seluruh UI
+                    document.getElementById('incomeInput').value = (appData.income || 0).toLocaleString('id-ID');
+                    document.getElementById('targetYearsInput').value = appData.years || 0;
+                    applyLockStateUI();
+                    renderCategories();
+                    updateCalculations();
+
+                    showToast('✅ Data berhasil direstore dari backup!', 'success');
+                } catch (err) {
+                    console.error('[AturDuit] Restore failed:', err);
+                    showToast('❌ File backup rusak atau tidak bisa dibaca.', 'danger');
+                }
+            };
+            reader.onerror = () => showToast('❌ Gagal membaca file. Coba lagi.', 'danger');
+            reader.readAsText(file);
+        }
+
         function updateCalculations() {
             const income = getUnformattedValue(document.getElementById('incomeInput').value);
             const years = parseFloat(document.getElementById('targetYearsInput').value) || 0;
@@ -1343,7 +1500,10 @@
             }
         }
 
-        window.onload = () => {
+        window.onload = async () => {
+            // Muat data dari IndexedDB dulu sebelum render UI
+            await loadData();
+
             const incomeEl = document.getElementById('incomeInput');
             incomeEl.value = (appData.income || 0).toLocaleString('id-ID');
             document.getElementById('targetYearsInput').value = appData.years || 0;
