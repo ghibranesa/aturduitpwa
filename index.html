@@ -242,22 +242,22 @@
                         </div>
                     </div>
                 </div>
-                <!-- Baris 2: Tombol Aksi -->
-                <div class="flex items-center gap-2">
-                    <button onclick="toggleManualModal(true)" class="flex-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-xs font-medium px-3 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 touch-target" title="Buka Panduan">
-                        <i data-lucide="book-open" class="w-3.5 h-3.5"></i>
+                <!-- Baris 2: Tombol Aksi — grid 2x2 di mobile, 4 kolom di layar lebar -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button onclick="toggleManualModal(true)" class="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-xs font-medium px-3 py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 touch-target whitespace-nowrap" title="Buka Panduan">
+                        <i data-lucide="book-open" class="w-3.5 h-3.5 shrink-0"></i>
                         <span>Panduan</span>
                     </button>
-                    <button onclick="backupData()" class="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-medium px-3 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 touch-target" title="Backup Data ke File JSON">
-                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                    <button onclick="backupData()" class="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-medium px-3 py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 touch-target whitespace-nowrap" title="Backup Data ke File JSON">
+                        <i data-lucide="download" class="w-3.5 h-3.5 shrink-0"></i>
                         <span>Backup</span>
                     </button>
-                    <button onclick="document.getElementById('restoreFileInput').click()" class="flex-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-medium px-3 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 touch-target" title="Restore Data dari File JSON">
-                        <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                    <button onclick="document.getElementById('restoreFileInput').click()" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-medium px-3 py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 touch-target whitespace-nowrap" title="Restore Data dari File JSON">
+                        <i data-lucide="upload" class="w-3.5 h-3.5 shrink-0"></i>
                         <span>Restore</span>
                     </button>
-                    <button onclick="resetToDefault()" class="flex-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-medium px-3 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 touch-target" title="Reset Ulang Dari Nol">
-                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                    <button onclick="resetToDefault()" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-medium px-3 py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 touch-target whitespace-nowrap" title="Reset Ulang Dari Nol">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 shrink-0"></i>
                         <span>Reset</span>
                     </button>
                 </div>
